@@ -1,76 +1,78 @@
-# VastDB Query Engine ADBC Driver
+# VAST Database QueryEngine ADBC Driver
 
 ## Overview
 
-The VastDB ADBC Driver provides access to the VastDB Query Engine.
-
-At present, the Query Engine supports query operations for selection and filtering.
-
-For more details about the VAST Database, see [this whitepaper](https://vastdata.com/whitepaper/#TheVASTDataBase).
+The VAST Database QueryEngine ADBC Driver provides an [ADBC (Arrow Database Connectivity)](https://arrow.apache.org/adbc/current/index.html) compliant interface for seamless integration with the VAST Database QueryEngine. For comprehensive technical specifications, please consult the [ADBC format specification](https://arrow.apache.org/adbc/current/format/specification.html).
 
 ## Requirements
 
-- Linux client with network access to the VAST Cluster
-- [Virtual IP pool configured with DNS service](https://support.vastdata.com/s/topic/0TOV40000000FThOAM/configuring-network-access-v50)
-- [S3 access & secret keys on the VAST cluster](https://support.vastdata.com/s/article/UUID-4d2e7e23-b2fb-7900-d98f-96c31a499626)
-- [Tabular identity policy with the proper permissions](https://support.vastdata.com/s/article/UUID-14322b60-d6a2-89ac-3df0-3dfbb6974182)
-
+* A Linux client with network connectivity to the VAST Cluster.
+* [S3 access and secret keys configured on the VAST Cluster](https://support.vastdata.com/s/article/UUID-4d2e7e23-b2fb-7900-d98f-96c31a499626).
+* [A Virtual IP (VIP) pool configured with a corresponding DNS service](https://kb.vastdata.com/documentation/docs/configuring-network-access).
+* [Appropriate permission settings for database access](https://support.vastdata.com/s/topic/0TOV40000000FThOAM/configuring-network-access-v50).
 
 ## Installation
 
-The VastDB ADBC Driver is shipped as a standalone library.
+**Via PyPI (Recommended for Python Environments)**  
+Install the driver directly from the Python Package Index:
+```bash
+pip install adbc-driver-vastdb
+```
 
-## Usage
+**Via GitHub Releases**  
+Pre-compiled binaries are available on the [GitHub Releases page](https://github.com/vast-data/vastdb-adbc-driver/releases).
 
-Supply the `AdbcDatabase` with the following options
+## Basic Usage
 
-- `vast.db.endpoint` - VAST cluster endpoint
-- `vast.db.access_key` - AWS access key
-- `vast.db.secret_key` - AWS secret access key
+The driver can be instantiated using standard ADBC driver managers across supported languages. Below is an example using the Python standard `adbc_driver_manager`. 
 
-Example of using the VastDB ADBC Driver with the Python `adbc-driver-manager`.
+To initialize the connection, provide the driver path and the required database credentials. If the driver was installed via PyPI, you can utilize the `get_driver_path()` function to locate the binary dynamically. For advanced usage and implementations in other programming languages, please refer to the official ADBC documentation.
+
+### Python DB-API Connection Example
 
 ```python
-import adbc_driver_manager
+import adbc_driver_manager.dbapi
+import adbc_driver_vastdb
 
 with adbc_driver_manager.dbapi.connect(
-    driver="<path/to/driver>",
+    driver=adbc_driver_vastdb.get_driver_path(), 
     db_kwargs={
-        "vast.db.endpoint": "<vast_cluster_endpoint>",
+        "vast.db.endpoint": "http://<vast-endpoint>",
         "vast.db.access_key": "<aws_access_key>",
-        "vast.db.secret_key": "<aws_secret_key>",
+        "vast.db.secret_key": "<aws_secret_key>"
     }
 ) as conn:
-    # Use the database connection
-    pass
+    # Utilize the Python DB-API connection
+    pass 
 ```
+
+## Configuration Options
+
+The driver supports various VAST-specific configuration parameters applicable at the Database, Connection, and Statement levels.
+
+### Database Options
+Provided during initialization (e.g., via `db_kwargs`):
+* `vast.db.endpoint`: The fully qualified URL of the VAST server.
+* `vast.db.access_key`: The AWS access key ID for authentication.
+* `vast.db.secret_key`: The AWS secret access key for authentication.
+
+### Connection Options
+Provided during connection instantiation (e.g., via `conn_kwargs`):
+* `adbc.connection.autocommit`: Toggles autocommit behavior (`"true"` or `"false"`).
+  * IMPORTANT - if using via the `adbc-driver-manager` use `autocommit` parameter of the connect function, as it has precedence.
+* `vast.db.end_user`: Specifies the end-user identity for impersonation purposes.
+
+### Environment Variables
+* `VAST_ADBC_LOG_DIR`: Specifies a custom directory for log files, overriding the default path.
+* `VAST_ADBC_STDOUT`: When set, redirects all driver logging to standard output rather than the file system.
 
 ## Logging
 
-- **Default logging level**: `INFO`.
-- To increase verbosity, set the environment variable `RUST_LOG` to values like `DEBUG` or `TRACE`.
+The driver implements a daily rotating log mechanism to record operations and errors. It retains a maximum of 10 log files, rotating them either daily or when a file size exceeds 100 MB. 
 
-### Log Location
-
-Logs are written to the following directory on Linux systems:
-
-`~/.local/share/VastDbDriver/vastdb_driver.log`
-
-- Logs are rotated daily or when the file reaches 100 MB.
-- The system keeps up to 10 log files at a time.
-
-## Known Limitations
-
-- **AdbcConnectionGetObjects**: Supports only the `vastdb` catalog and exact filter for `db_schema`
-- **GetStatistics**: Not supported.
-- **ExecutePartitions** Not supported.
-- **AdbcStatementPrepare**: Prepare should be done using SQL prepare statements through execute.
-- **StatementExecuteSchema**, **AdbcStatementGetParameterSchema** and **AdbcStatementSetSubstraitPlan**: Not supported.
+If the `VAST_ADBC_LOG_DIR` environment variable is omitted, logs are stored in the following OS-specific default directory:
+* **Linux:** `~/.local/share/VastAdbcDriver/vastdb_driver.log`
 
 ## Support
 
-For detailed documentation, FAQs, and troubleshooting guides, refer to the official resources or contact the VastDB support team.
-
---- 
-
-*This driver is compatible with the ADBC interface, and thus integrates seamlessly into existing ADBC workflows, with noted exceptions.*
+For comprehensive documentation, frequently asked questions, and troubleshooting assistance, please refer to the official VAST Data resources or contact the VastDB support team.
