@@ -7,9 +7,9 @@ The VAST Database QueryEngine ADBC Driver provides an [ADBC (Arrow Database Conn
 ## Requirements
 
 * A Linux client with network connectivity to the VAST Cluster.
-* [S3 access and secret keys configured on the VAST Cluster](https://support.vastdata.com/s/article/UUID-4d2e7e23-b2fb-7900-d98f-96c31a499626).
+* [S3 access and secret keys configured on the VAST Cluster](https://kb.vastdata.com/documentation/docs/overview-of-vast-cluster-s3-implementation).
 * [A Virtual IP (VIP) pool configured with a corresponding DNS service](https://kb.vastdata.com/documentation/docs/configuring-network-access).
-* [Appropriate permission settings for database access](https://support.vastdata.com/s/topic/0TOV40000000FThOAM/configuring-network-access-v50).
+* [Appropriate permission settings for database access](https://kb.vastdata.com/documentation/docs/managing-permissions-for-accessing-vast-tabular-databases).
 
 ## Installation
 
