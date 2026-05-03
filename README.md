@@ -1,78 +1,187 @@
-# VAST Database QueryEngine ADBC Driver
+# VastDB Query Engine ADBC Driver
 
 ## Overview
 
-The VAST Database QueryEngine ADBC Driver provides an [ADBC (Arrow Database Connectivity)](https://arrow.apache.org/adbc/current/index.html) compliant interface for seamless integration with the VAST Database QueryEngine. For comprehensive technical specifications, please consult the [ADBC format specification](https://arrow.apache.org/adbc/current/format/specification.html).
+The VastDB ADBC Driver provides access to the VastDB Query Engine.
+
+For more details about the VAST Query Engine, see [this whitepaper](https://kb.vastdata.com/documentation/docs/vast-query-engine).
+
+For more details about the VAST Database, see [this whitepaper](https://vastdata.com/whitepaper/#TheVASTDataBase).
 
 ## Requirements
 
-* A Linux client with network connectivity to the VAST Cluster.
-* [S3 access and secret keys configured on the VAST Cluster](https://kb.vastdata.com/documentation/docs/overview-of-vast-cluster-s3-implementation).
-* [A Virtual IP (VIP) pool configured with a corresponding DNS service](https://kb.vastdata.com/documentation/docs/configuring-network-access).
-* [Appropriate permission settings for database access](https://kb.vastdata.com/documentation/docs/managing-permissions-for-accessing-vast-tabular-databases).
+- Linux / Mac client with network access to the VAST Cluster
+- [Virtual IP pool configured with DNS service](https://support.vastdata.com/s/topic/0TOV40000000FThOAM/configuring-network-access-v50)
+- [S3 access & secret keys on the VAST cluster](https://support.vastdata.com/s/article/UUID-4d2e7e23-b2fb-7900-d98f-96c31a499626)
+- [Tabular identity policy with the proper permissions](https://support.vastdata.com/s/article/UUID-14322b60-d6a2-89ac-3df0-3dfbb6974182)
+
 
 ## Installation
 
-**Via PyPI (Recommended for Python Environments)**  
-Install the driver directly from the Python Package Index:
-```bash
-pip install adbc-driver-vastdb
-```
+The VastDB ADBC Driver is shipped as a standalone library.
 
-**Via GitHub Releases**  
-Pre-compiled binaries are available on the [GitHub Releases page](https://github.com/vast-data/vastdb-adbc-driver/releases).
+## Usage
 
-## Basic Usage
-
-The driver can be instantiated using standard ADBC driver managers across supported languages. Below is an example using the Python standard `adbc_driver_manager`. 
-
-To initialize the connection, provide the driver path and the required database credentials. If the driver was installed via PyPI, you can utilize the `get_driver_path()` function to locate the binary dynamically. For advanced usage and implementations in other programming languages, please refer to the official ADBC documentation.
-
-### Python DB-API Connection Example
+Example of using the VastDB ADBC Driver with the Python `adbc-driver-manager`.
 
 ```python
-import adbc_driver_manager.dbapi
-import adbc_driver_vastdb
+import adbc_driver_manager
 
 with adbc_driver_manager.dbapi.connect(
-    driver=adbc_driver_vastdb.get_driver_path(), 
+    driver="<path/to/driver>",
     db_kwargs={
-        "vast.db.endpoint": "http://<vast-endpoint>",
+        "vast.db.endpoint": "<vast_cluster_endpoint>",
         "vast.db.access_key": "<aws_access_key>",
-        "vast.db.secret_key": "<aws_secret_key>"
+        "vast.db.secret_key": "<aws_secret_key>",
     }
 ) as conn:
-    # Utilize the Python DB-API connection
-    pass 
+    # Use the database connection
+    pass
 ```
 
-## Configuration Options
+See [Options](#options) for the full list of database, connection, and statement options.
 
-The driver supports various VAST-specific configuration parameters applicable at the Database, Connection, and Statement levels.
+## Options
 
-### Database Options
-Provided during initialization (e.g., via `db_kwargs`):
-* `vast.db.endpoint`: The fully qualified URL of the VAST server.
-* `vast.db.access_key`: The AWS access key ID for authentication.
-* `vast.db.secret_key`: The AWS secret access key for authentication.
+### Database options
 
-### Connection Options
-Provided during connection instantiation (e.g., via `conn_kwargs`):
-* `adbc.connection.autocommit`: Toggles autocommit behavior (`"true"` or `"false"`).
-  * IMPORTANT - if using via the `adbc-driver-manager` use `autocommit` parameter of the connect function, as it has precedence.
-* `vast.db.end_user`: Specifies the end-user identity for impersonation purposes.
+Set these on `AdbcDatabase` before creating a connection. All three are required.
 
-### Environment Variables
-* `VAST_ADBC_LOG_DIR`: Specifies a custom directory for log files, overriding the default path.
-* `VAST_ADBC_STDOUT`: When set, redirects all driver logging to standard output rather than the file system.
+| Option | Values | Default | Description |
+|--------|--------|---------|-------------|
+| `vast.db.endpoint` | URL string | — | VAST cluster endpoint URL. Required. |
+| `vast.db.access_key` | string | — | AWS access key. Required. |
+| `vast.db.secret_key` | string | — | AWS secret key. Required. |
+
+Standard ADBC database options are not supported.
+
+### Connection options
+
+#### Standard ADBC options
+
+| Option | Values | Default | Description |
+|--------|--------|---------|-------------|
+| `adbc.connection.autocommit` | `"true"` or `"false"` | `"true"` | Controls transaction autocommit mode. Can be set at connection creation or via `AdbcConnectionSetOption` before the connection is used (before creating statements, calling `get_objects`, or `get_table_schema`). Cannot be changed after the connection is used. |
+
+#### Custom options
+
+| Option | Values | Default | Description |
+|--------|--------|---------|-------------|
+| `vast.db.end_user` | string | — | End-user impersonation. Set at connection creation. For more details see [User Impersonation](https://kb.vastdata.com/documentation/docs/user-impersonation). |
+| `vast.db.variable.<name>` | string, integer, or double | — | Define a user variable accessible in queries, e.g. `SELECT getVariable('x')`. Any valid DuckDB user variable name is valid. Set after connection init. |
+| `vast.db.setting.<name>` | string, integer, or double | — | Set a VAST session setting that influences query execution (see supported settings below). Set after connection init. |
+
+User variables and session settings cannot be passed at connection creation; set them with `AdbcConnectionSetOption` after the connection is initialized.
+
+#### Supported VAST session settings
+
+- `vector_search_skip_recent_non_indexed`
+- `vector_search_min_prob`
+- `vector_search_max_prob`
+- `vector_search_pruning_distance_ratio`
+- `vector_search_min_full_clusters_after_filtering`
+- `vector_search_defer_projection`
+
+### Statement options
+
+#### Standard ADBC options
+
+Used with `AdbcStatementExecuteUpdate` for bulk data ingest (see [Data ingestion](#data-ingestion)).
+
+| Option | Values | Default | Description |
+|--------|--------|---------|-------------|
+| `adbc.ingest.mode` | `adbc.ingest.mode.append` | — | Ingest mode. Only append is supported. Required for ingest. |
+| `adbc.ingest.target_catalog` | `vastdb` | — | Target catalog. Only `vastdb` is accepted when set. |
+| `adbc.ingest.target_db_schema` | schema path | — | Fully qualified schema path (e.g. `"bucket/schema"`). Required for ingest. |
+| `adbc.ingest.target_table` | table name | — | Target table name. Required for ingest. |
+
+Other standard ingest options are not supported.
+
+## Data ingestion
+
+The driver supports ADBC bulk ingest via `AdbcStatementExecuteUpdate`, following the standard ADBC ingest option keys listed above.
+
+**Supported data binding**
+
+- `AdbcStatementBind` — bind a single Arrow `RecordBatch`. This is the supported way to provide ingest data.
+- `AdbcStatementBindStream` — **not supported**.
+
+**Requirements**
+
+1. Set all required ingest options (`adbc.ingest.mode`, `adbc.ingest.target_db_schema`, `adbc.ingest.target_table`).
+2. Bind a `RecordBatch` with `AdbcStatementBind`.
+3. An SQL statement must **not** be set on the statement.
+4. Call `AdbcStatementExecuteUpdate`.
+
+Ingest respects the connection's transaction mode: use `commit` / `rollback` when autocommit is disabled.
+
+Example using the Python `adbc-driver-manager`:
+
+```python
+import adbc_driver_manager
+import pyarrow as pa
+
+bucket = "my-bucket"
+schema_name = "s"
+table_name = "t"
+
+schema = pa.schema([("a", pa.int32())])
+batch = pa.record_batch([pa.array([42], type=pa.int32())], schema=schema)
+
+with adbc_driver_manager.dbapi.connect(
+    driver="<path/to/driver>",
+    db_kwargs={
+        "vast.db.endpoint": "<vast_cluster_endpoint>",
+        "vast.db.access_key": "<aws_access_key>",
+        "vast.db.secret_key": "<aws_secret_key>",
+    },
+) as conn:
+    with adbc_driver_manager.AdbcStatement(conn.adbc_connection) as stmt:
+        stmt.set_options(
+            **{
+                "adbc.ingest.mode": "adbc.ingest.mode.append",
+                "adbc.ingest.target_catalog": "vastdb",
+                "adbc.ingest.target_db_schema": f"{bucket}/{schema_name}",
+                "adbc.ingest.target_table": table_name,
+            }
+        )
+        stmt.bind(batch)
+        rows_affected = stmt.execute_update()
+```
 
 ## Logging
 
-The driver implements a daily rotating log mechanism to record operations and errors. It retains a maximum of 10 log files, rotating them either daily or when a file size exceeds 100 MB. 
+- **Default logging level**: `INFO`.
+- To increase verbosity, set the environment variable `RUST_LOG` to values like `DEBUG` or `TRACE`.
 
-If the `VAST_ADBC_LOG_DIR` environment variable is omitted, logs are stored in the following OS-specific default directory:
-* **Linux:** `~/.local/share/VastAdbcDriver/vastdb_driver.log`
+### Log Location
+
+Logs are written to the following directory on Linux systems:
+
+`~/.local/share/VastDbDriver/vastdb_driver.log`
+
+Or, on Mac to:
+
+`~/Library/Logs/VastDbDruver/vastdb_driver.log`
+
+- Home directory can be changed by setting `VAST_ADBC_LOG_DIR`
+- Console logs can be enabled by settings `VAST_ADBC_STDOUT=1`
+- Logs are rotated daily or when the file reaches 100 MB.
+- The system keeps up to 10 log files at a time.
+
+## Known Limitations
+
+- **AdbcConnectionGetObjects**: Supports only the `vastdb` catalog and exact filter for `db_schema`
+- **ExecutePartitions** Not supported.
+- **AdbcStatementPrepare**: Prepare should be done using SQL prepare statements through execute.
+- **StatementExecuteSchema**, **AdbcStatementGetParameterSchema** and **AdbcStatementSetSubstraitPlan**: Not supported.
+- **AdbcStatementBindStream**: Not supported. Ingest accepts data only via `AdbcStatementBind` with a single `RecordBatch`.
+- **Ingest modes**: Only `adbc.ingest.mode.append` is supported (`create`, `create_append`, and `replace` are not).
 
 ## Support
 
-For comprehensive documentation, frequently asked questions, and troubleshooting assistance, please refer to the official VAST Data resources or contact the VastDB support team.
+For detailed documentation, FAQs, and troubleshooting guides, refer to the official resources or contact the VastDB support team.
+
+--- 
+
+*This driver is compatible with the ADBC interface, and thus integrates seamlessly into existing ADBC workflows, with noted exceptions.*
